@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Asset Review Workflow</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app_shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand_logo" aria-hidden="true"></span>
+          <div>Asset Review <small>ImageKit DAM</small></div>
+        </div>
+        <div>
+          <button class="btn btn_primary">New Upload</button>
+        </div>
+      </header>
+
+      <section class="toolbar">
+        <input
+          class="input"
+          type="search"
+          placeholder="Search by name, tag, folder"
+          aria-label="Search"
+        />
+        <select class="input" aria-label="Status filter">
+          <option value="all">All</option>
+          <option value="pending" selected>Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <select class="input" aria-label="Type filter">
+          <option>All types</option>
+          <option>Image</option>
+          <option>Video</option>
+        </select>
+        <button class="btn">Refresh</button>
+      </section>
+
+      <main class="layout">
+        <!-- Queue list -->
+        <section class="panel">
+          <div class="list_head">
+            <div>
+              <strong>Review Queue</strong>
+              <span class="file_info">Newest first</span>
+            </div>
+            <div class="row_actions">
+              <button class="btn">Select All</button>
+              <button class="btn">Approve All</button>
+              <button class="btn">Reject All</button>
+            </div>
+          </div>
+          <div class="list" id="queue">
+            <!-- Example row -->
+            <div class="row" data-file-id="file_01" data-status="pending">
+              <div
+                class="thumb"
+                style="
+                  background-image: url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=200&q=60');
+                "
+              ></div>
+              <div class="file_meta">
+                <div class="file_name">header_banner_v3.jpg</div>
+                <div class="file_info">
+                  by ashish • /marketing/banners • 2 hours ago • 1.2 MB
+                </div>
+              </div>
+              <div class="status_badge status_pending">Pending</div>
+              <div class="row_actions">
+                <button class="btn btn_success">Approve</button>
+                <button class="btn btn_danger">Reject</button>
+              </div>
+              <div>
+                <input type="checkbox" aria-label="Select asset" />
+              </div>
+            </div>
+
+            <div class="row" data-file-id="file_02" data-status="approved">
+              <div
+                class="thumb"
+                style="
+                  background-image: url('https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=200&q=60');
+                "
+              ></div>
+              <div class="file_meta">
+                <div class="file_name">product_packshot.png</div>
+                <div class="file_info">
+                  by meera • /products/packshots • yesterday • 860 KB
+                </div>
+              </div>
+              <div class="status_badge status_approved">Approved</div>
+              <div class="row_actions">
+                <button class="btn">Revert</button>
+                <button class="btn btn_danger">Reject</button>
+              </div>
+              <div>
+                <input type="checkbox" aria-label="Select asset" />
+              </div>
+            </div>
+
+            <div class="row" data-file-id="file_03" data-status="rejected">
+              <div
+                class="thumb"
+                style="
+                  background-image: url('https://images.unsplash.com/photo-1495567720989-cebdbdd97913?w=200&q=60');
+                "
+              ></div>
+              <div class="file_meta">
+                <div class="file_name">social_ad_square.jpg</div>
+                <div class="file_info">
+                  by arjun • /social/ads • 3 days ago • 640 KB
+                </div>
+              </div>
+              <div class="status_badge status_rejected">Rejected</div>
+              <div class="row_actions">
+                <button class="btn">Send To Pending</button>
+              </div>
+              <div>
+                <input type="checkbox" aria-label="Select asset" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Detail panel -->
+        <aside class="panel detail" aria-live="polite">
+          <div class="detail_head">
+            <div>
+              <strong>Selected Asset</strong>
+              <span class="file_info">file_01</span>
+            </div>
+            <div class="status_badge status_pending">Pending</div>
+          </div>
+          <div class="preview">
+            <div
+              class="preview_box"
+              style="
+                background-image: url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=900&q=60');
+              "
+            ></div>
+          </div>
+          <div class="meta">
+            <div class="meta_grid">
+              <div class="meta_item">
+                <div class="meta_key">Folder</div>
+                <div class="meta_val">/marketing/banners</div>
+              </div>
+              <div class="meta_item">
+                <div class="meta_key">Uploader</div>
+                <div class="meta_val">ashish</div>
+              </div>
+              <div class="meta_item">
+                <div class="meta_key">Size</div>
+                <div class="meta_val">1.2 MB</div>
+              </div>
+              <div class="meta_item">
+                <div class="meta_key">Type</div>
+                <div class="meta_val">Image JPEG</div>
+              </div>
+            </div>
+            <label class="toggle">
+              <span class="file_info">Public Delivery</span>
+              <span class="switch">
+                <input type="checkbox" aria-label="Public delivery" />
+                <span class="slider"></span>
+              </span>
+            </label>
+          </div>
+          <div class="actions">
+            <input
+              class="input note"
+              type="text"
+              placeholder="Add a note or rejection reason"
+            />
+            <div class="actions_left">
+              <button class="btn btn_success">Approve</button>
+              <button class="btn btn_danger">Reject</button>
+            </div>
+          </div>
+          <div class="helper">
+            Tip: map these buttons to your Node endpoints for approve, reject,
+            and revert. Use the file id and current status from data attributes
+            on each row.
+          </div>
+        </aside>
+      </main>
+    </div>
+  </body>
+</html>

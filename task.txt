@@ -1,0 +1,93 @@
+✅ To-Do List for Phase 1 (Core Workflow)
+
+1. Setup & Preparation
+
+ Create a new project folder.
+
+ Initialize Node.js project (npm init -y).
+
+ Install dependencies: npm install express cors imagekit dotenv.
+
+ Create .env file and add your ImageKit credentials.
+
+ Define custom metadata fields in your ImageKit dashboard:
+
+status (enum: pending, approved, rejected)
+
+reviewer, reason, reviewedAt
+
+2. Backend (Node + Express)
+
+ Create server.js.
+
+ Initialize Express app with cors() and express.json().
+
+ Configure ImageKit SDK with your credentials.
+
+ Write mapItem(f) function to simplify file objects.
+
+ Add routes:
+
+ GET /api/queue → return files with status = pending (default).
+
+ POST /api/approve → set status = approved with reviewer + timestamp.
+
+ POST /api/reject → set status = rejected with reason + timestamp.
+
+ POST /api/revert → set status = pending.
+
+ Start server (node server.js) and test routes with Postman or curl.
+
+3. Frontend (UI)
+
+ Create index.html (approval dashboard skeleton).
+
+ Link styles.css for styling.
+
+ Add <div id="queue"></div> to hold asset list.
+
+ Add buttons (Approve, Reject, Refresh).
+
+ Add search input and dropdowns (status, type, folder).
+
+4. Frontend JS (app.js)
+
+ Write loadQueue() function to fetch("/api/queue") and render rows.
+
+ For each row, attach event listeners:
+
+ Approve button → POST /api/approve.
+
+ Reject button → POST /api/reject.
+
+ After action → reload queue.
+
+ Add refresh button → calls loadQueue().
+
+ Run initial loadQueue() on page load (DOMContentLoaded).
+
+5. Integration Test
+
+ Upload a file to ImageKit (set status=pending).
+
+ Refresh dashboard → see it in queue.
+
+ Click Approve → status changes to approved, row disappears from pending list.
+
+ Click Reject → status changes to rejected.
+
+ Revert rejected file → goes back to pending.
+
+ Search by name/tag/folder → filters list.
+
+🎯 End of Day Goal
+
+By the end of Phase 1:
+
+You can upload an asset.
+
+It appears in the review queue (pending).
+
+Approve/Reject/Revert buttons update the status.
+
+Queue updates live.
