@@ -1,0 +1,6 @@
+# Claude Code config
+.claude/
+
+# macOS
+.DS_Store
+node_modules/

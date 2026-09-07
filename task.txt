@@ -1,3 +1,361 @@
+================================================================================
+  ImageKit DAM Workflow Automation — Project Plan & Learning Guide
+================================================================================
 
--> List API to fetch the images based on search paramter and return the things needed to the UI 
+GOAL: Learn the ImageKit Node.js SDK end-to-end by building a realistic DAM
+asset review workflow that includes AI-powered auto-tagging via AI Tasks.
 
+--------------------------------------------------------------------------------
+  CURRENT STATE (what's already built)
+--------------------------------------------------------------------------------
+
+Backend (index.js):
+  - Express server on port 8000
+  - ImageKit SDK initialized via env vars
+  - GET /ik-auth       → returns auth params for client-side upload
+  - GET /api/search    → lists files by folder using imagekit.listFiles()
+  - mapItem()          → trims raw IK file response to UI-safe shape
+
+Frontend (index.html + style.css):
+  - Review queue UI with thumbnail, name, folder, uploader, status badge
+  - Detail panel with metadata grid + action buttons (Approve / Reject / Revert)
+  - Toolbar with search input, status filter, type filter
+  - Buttons are wired up visually but NOT connected to any backend yet
+
+Gaps:
+  - No POST routes for approve / reject / revert
+  - No frontend JS to call the backend
+  - No custom metadata fields defined in ImageKit yet
+  - AI Tasks not integrated at all
+  - Upload flow not wired to the frontend "New Upload" button
+
+--------------------------------------------------------------------------------
+  HOW THE WORKFLOW WORKS (end-to-end)
+--------------------------------------------------------------------------------
+
+1. UPLOAD
+   User clicks "New Upload" in the UI.
+   Frontend calls GET /ik-auth to get token, expire, signature.
+   Frontend SDK (ImageKit JS) uploads the file directly to ImageKit.
+   During upload, the extensions parameter carries an AI Task config
+   that auto-tags the image and sets initial metadata (Status = "Pending").
+
+2. QUEUE POPULATION
+   After upload, the frontend calls GET /api/search?folder=<folder>
+   The backend calls imagekit.listFiles() with a searchQuery.
+   Response is mapped via mapItem() and returned as JSON.
+   The frontend renders each file as a row in the review queue.
+
+3. REVIEW ACTIONS
+   Reviewer clicks Approve → frontend calls POST /api/approve with fileId + note
+   Backend calls imagekit.updateFileDetails(fileId, { customMetadata: { Status: "Approved", Reviewer: ..., ReviewedAt: ... } })
+
+   Reviewer clicks Reject → frontend calls POST /api/reject with fileId + reason
+   Backend calls imagekit.updateFileDetails(fileId, { customMetadata: { Status: "Rejected", Reason: ..., Reviewer: ... } })
+
+   Reviewer clicks Revert → frontend calls POST /api/revert with fileId
+   Backend calls imagekit.updateFileDetails(fileId, { customMetadata: { Status: "Pending" } })
+
+4. AI TASKS (automatic on upload)
+   When a file is uploaded with an extensions config, ImageKit's AI:
+   - Reads the image using an LLM
+   - Runs your configured sub-tasks (select_tags, select_metadata, yes_no)
+   - Applies tags or metadata automatically
+   This means every uploaded asset arrives with AI-generated tags and
+   a pre-suggested content category — reviewers only confirm or override.
+
+--------------------------------------------------------------------------------
+  PHASE 1 — Complete the Core Workflow (MVP)
+--------------------------------------------------------------------------------
+
+Tasks:
+  [ ] Define custom metadata fields in ImageKit dashboard:
+        - Status      (type: SingleSelect — Pending, Approved, Rejected)
+        - Reviewer    (type: Text)
+        - Reason      (type: Text)
+        - ReviewedAt  (type: Date)
+
+  [ ] Add POST /api/approve route
+        imagekit.updateFileDetails(fileId, {
+          customMetadata: { Status: "Approved", Reviewer: req.body.reviewer, ReviewedAt: new Date().toISOString() }
+        })
+
+  [ ] Add POST /api/reject route
+        imagekit.updateFileDetails(fileId, {
+          customMetadata: { Status: "Rejected", Reason: req.body.reason, Reviewer: req.body.reviewer }
+        })
+
+  [ ] Add POST /api/revert route
+        imagekit.updateFileDetails(fileId, {
+          customMetadata: { Status: "Pending" }
+        })
+
+  [ ] Wire up frontend script.js:
+        - On load: fetch /api/search → render rows
+        - Approve/Reject/Revert buttons → fetch POST routes → re-render row
+        - Detail panel → populate on row click
+
+SDK methods you learn here:
+  - imagekit.listFiles({ searchQuery, limit, skip })
+  - imagekit.updateFileDetails(fileId, { customMetadata, tags })
+  - imagekit.getFileDetails(fileId)
+
+--------------------------------------------------------------------------------
+  PHASE 2 — Upload Flow + Client-Side SDK
+--------------------------------------------------------------------------------
+
+Tasks:
+  [ ] Wire "New Upload" button to ImageKit JS client-side upload
+        - GET /ik-auth on click → get token + signature
+        - Use ImageKit JS SDK upload() with returned auth params
+        - On success → prepend new row to queue
+
+  [ ] Add server-side upload endpoint POST /api/upload (optional)
+        - Accepts multipart file from form-data
+        - Calls imagekit.upload({ file, fileName, folder, customMetadata: { Status: "Pending" } })
+        - This is useful for automated pipelines (CI, scripts)
+
+  [ ] Add GET /api/file/:fileId for fetching single file details
+        imagekit.getFileDetails(fileId)
+
+SDK methods you learn here:
+  - imagekit.getAuthenticationParameters()  — already done, understand it deeper
+  - imagekit.upload({ file, fileName, folder, tags, customMetadata, extensions })
+  - imagekit.getFileDetails(fileId)
+
+--------------------------------------------------------------------------------
+  PHASE 3 — AI Tasks Integration (the new feature)
+--------------------------------------------------------------------------------
+
+Overview:
+  AI Tasks run at upload time (or via update) using the "extensions" parameter.
+  You define tasks in JSON — each task has a type, instruction, and actions.
+
+Three task types:
+  1. select_tags     — picks tags from your vocabulary list
+  2. select_metadata — sets a custom metadata field from allowed values
+  3. yes_no          — asks a true/false question, triggers different actions
+
+How to use in this project:
+
+  A. Auto-tag content type on upload
+     Extension config passed to imagekit.upload():
+
+     extensions: [{
+       name: "google-auto-tagging",    // or use AI task name
+       // For AI Tasks use the "ai-task" extension:
+     }]
+
+     More specifically, for AI Tasks:
+     extensions: [{
+       name: "saved-extension-id",     // reference a Saved Extension from dashboard
+     }]
+
+     OR inline config:
+     extensions: [{
+       name: "ai-task",
+       options: {
+         tasks: [
+           {
+             type: "select_tags",
+             instruction: "What is the primary subject of this image? Choose all that apply.",
+             vocabulary: ["product", "lifestyle", "banner", "portrait", "landscape", "infographic"],
+             actions: {
+               addTags: { minCount: 1, maxCount: 3 }
+             }
+           },
+           {
+             type: "yes_no",
+             instruction: "Does this image contain visible faces or identifiable people?",
+             actions: {
+               yes: { addTags: ["contains-people"] },
+               no:  { addTags: ["no-people"] }
+             }
+           },
+           {
+             type: "select_metadata",
+             instruction: "What is the primary color palette of this image?",
+             field: "ColorPalette",           // your custom metadata field name
+             vocabulary: ["warm", "cool", "neutral", "vibrant", "monochrome"]
+           }
+         ]
+       }
+     }]
+
+  B. Run AI Tasks on existing files via update
+     imagekit.updateFileDetails(fileId, {
+       extensions: [{ name: "ai-task", options: { tasks: [...] } }]
+     })
+     Use this for bulk re-tagging of old assets.
+
+  C. Bulk AI enrichment script
+     Write a Node script that:
+     1. Calls imagekit.listFiles({ searchQuery: 'customMetadata.Status = "Pending"' })
+     2. Loops each file, calls updateFileDetails with AI Task extensions
+     3. Logs result — assets get tags + metadata automatically
+
+Tasks to build:
+  [ ] Create a Saved Extension in the ImageKit dashboard with AI task config
+  [ ] Pass extension ID in upload() to auto-run AI on new uploads
+  [ ] Add POST /api/enrich route — runs AI Task on a single file on demand
+  [ ] Add POST /api/bulk-enrich route — runs AI Task on all Pending files
+  [ ] Show AI-generated tags in the detail panel of the UI
+
+SDK methods you learn here:
+  - imagekit.upload() with extensions parameter
+  - imagekit.updateFileDetails() with extensions parameter
+  - imagekit.listFiles() with advanced searchQuery (customMetadata filters)
+  - Reading tags from file response and displaying them
+
+--------------------------------------------------------------------------------
+  PHASE 4 — Advanced Features
+--------------------------------------------------------------------------------
+
+Tasks:
+  [ ] Webhooks — receive real-time events from ImageKit
+        - Add POST /webhook route
+        - Use imagekit.verifyWebhookSignature(rawBody, signature, secret)
+        - Log events: FILE_UPLOADED, FILE_UPDATED, EXTENSION_STATUS_UPDATED
+        - On EXTENSION_STATUS_UPDATED → read the AI task result and update UI
+
+  [ ] URL Transformations — generate optimized thumbnail URLs
+        imagekit.url({
+          path: file.filePath,
+          transformation: [{ height: 200, width: 200, cropMode: "pad_resize" }]
+        })
+
+  [ ] Signed URLs — generate time-limited private asset URLs
+        imagekit.url({
+          path: file.filePath,
+          signed: true,
+          expireSeconds: 3600
+        })
+
+  [ ] Folder management
+        imagekit.createFolder({ folderName: "archive", parentFolderPath: "/" })
+        imagekit.moveFile({ sourceFilePath, destinationPath })  // move rejected assets to /archive
+
+  [ ] Bulk tag operations
+        imagekit.bulkAddTags({ fileIds: [...], tags: ["reviewed"] })
+        imagekit.bulkRemoveTags({ fileIds: [...], tags: ["pending-review"] })
+
+  [ ] Usage / stats endpoint
+        imagekit.getFileVersions(fileId)
+        Add GET /api/stats → counts of Pending, Approved, Rejected assets
+
+SDK methods you learn here:
+  - imagekit.url() with transformation and signed options
+  - imagekit.verifyWebhookSignature()
+  - imagekit.createFolder()
+  - imagekit.moveFile() / imagekit.copyFile()
+  - imagekit.bulkAddTags() / imagekit.bulkRemoveTags()
+  - imagekit.deleteFile()
+  - imagekit.getFileVersions()
+
+--------------------------------------------------------------------------------
+  COMPLETE SDK METHOD CHECKLIST
+--------------------------------------------------------------------------------
+
+Auth & Setup:
+  [x] new ImageKit({ publicKey, privateKey, urlEndpoint })
+  [x] imagekit.getAuthenticationParameters()
+
+File Listing & Search:
+  [x] imagekit.listFiles({ searchQuery, limit, skip, sort })
+  [ ] imagekit.getFileDetails(fileId)
+  [ ] imagekit.getFileVersions(fileId)
+
+File Upload:
+  [ ] imagekit.upload({ file, fileName, folder, tags, customMetadata, extensions })
+
+File Update:
+  [ ] imagekit.updateFileDetails(fileId, { tags, customMetadata, extensions })
+  [ ] imagekit.bulkAddTags({ fileIds, tags })
+  [ ] imagekit.bulkRemoveTags({ fileIds, tags })
+
+File Move / Copy / Delete:
+  [ ] imagekit.moveFile({ sourceFilePath, destinationPath })
+  [ ] imagekit.copyFile({ sourceFilePath, destinationPath })
+  [ ] imagekit.deleteFile(fileId)
+  [ ] imagekit.bulkDeleteFiles([fileId1, fileId2])
+
+Folder Operations:
+  [ ] imagekit.createFolder({ folderName, parentFolderPath })
+  [ ] imagekit.deleteFolder(folderPath)
+  [ ] imagekit.moveFolder({ sourceFolderPath, destinationPath })
+
+URL Generation:
+  [ ] imagekit.url({ path, transformation: [...] })
+  [ ] imagekit.url({ path, signed: true, expireSeconds })
+
+Webhooks:
+  [ ] imagekit.verifyWebhookSignature(rawBody, signature, secret)
+
+AI Tasks (via extensions param):
+  [ ] select_tags task in upload()
+  [ ] select_metadata task in upload()
+  [ ] yes_no task in upload()
+  [ ] AI task via updateFileDetails() on existing files
+
+--------------------------------------------------------------------------------
+  WHAT YOU LEARN (skill map)
+--------------------------------------------------------------------------------
+
+Node.js / Backend:
+  - Express routing (GET, POST, middleware)
+  - Environment variable management with dotenv
+  - Parsing multipart form data for file uploads
+  - Error handling patterns in async Express routes
+  - CORS configuration for frontend/backend split
+
+ImageKit SDK Core:
+  - SDK initialization and auth flow
+  - How searchQuery (Lucene-like syntax) filters files
+  - Custom metadata: defining fields, reading, writing
+  - Tags vs custom metadata — when to use each
+  - Upload parameters and how extensions hook in
+
+ImageKit AI Tasks:
+  - What the three task types do and when to use each
+  - How to define a vocabulary list for consistent tagging
+  - How to reference a Saved Extension vs inline config
+  - How to trigger AI enrichment on existing assets via update
+  - How to read AI task results from the file response / webhooks
+
+ImageKit URL Generation:
+  - Transformation chains (resize, crop, format, quality)
+  - Signed URL generation for private or expiring assets
+  - Overlay support (text/image watermarks)
+
+Digital Asset Management Concepts:
+  - Asset lifecycle: Upload → Review → Approve/Reject → Archive
+  - Metadata schemas and why structure matters at scale
+  - Review workflows and audit trails
+  - AI-assisted tagging to reduce manual effort
+  - Webhook-driven real-time updates
+
+Frontend (bonus):
+  - Vanilla JS fetch() for REST API calls
+  - Event delegation on dynamic lists
+  - Client-side SDK integration with server-auth pattern
+
+--------------------------------------------------------------------------------
+  SUGGESTED BUILD ORDER
+--------------------------------------------------------------------------------
+
+Week 1:  Phase 1 — Wire up the 3 POST routes + frontend JS
+Week 2:  Phase 2 — Client-side upload, /api/file/:id, server-side upload
+Week 3:  Phase 3 — AI Tasks on upload + bulk enrich script
+Week 4:  Phase 4 — Webhooks, URL transforms, folder ops, stats
+
+--------------------------------------------------------------------------------
+  REFERENCE LINKS
+--------------------------------------------------------------------------------
+
+ImageKit Node SDK:       https://github.com/imagekit-developer/imagekit-nodejs
+ImageKit AI Tasks docs:  https://imagekit.io/docs/dam/ai-tasks
+ImageKit API reference:  https://docs.imagekit.io/api-reference
+SDK npm package:         https://www.npmjs.com/package/imagekit
+
+================================================================================
+`````
